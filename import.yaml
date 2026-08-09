@@ -1,0 +1,50 @@
+#yamlPreprocessor=on
+# AirCast — Zerops project import. Creates all 5 services and builds+deploys
+# the three code services straight from GitHub (repo is public).
+#   zcli project project-import import.yaml
+#
+# Public: app, api.  Private: ingestor, db, cache.
+
+project:
+  name: aircast
+  description: Live air quality + health alerts for Indian cities
+  tags:
+    - zerops-challenge
+
+services:
+  # --- Data layer (private) ---
+  - hostname: db
+    type: postgresql:single@16
+    # expose db vars to other services without per-var references
+    envIsolation: none
+    priority: 10
+
+  - hostname: cache
+    type: valkey@7.2
+    priority: 10
+
+  # --- Ingestor (private): pulls OpenAQ every 10 min, computes AQI ---
+  - hostname: ingestor
+    type: nodejs@22
+    buildFromGit: https://github.com/oscarosk/aircast
+    zeropsSetup: ingestor
+    envSecrets:
+      # get a free key at openaq.org and paste it here before import,
+      # or add it in the GUI afterwards under Secret variables
+      OPENAQ_API_KEY: ""
+
+  # --- API (public) ---
+  - hostname: api
+    type: nodejs@22
+    buildFromGit: https://github.com/oscarosk/aircast
+    zeropsSetup: api
+    enableSubdomainAccess: true
+    minContainers: 1
+    maxContainers: 1
+
+  # --- Frontend (public, native static service) ---
+  - hostname: app
+    type: static
+    buildFromGit: https://github.com/oscarosk/aircast
+    zeropsSetup: app
+    enableSubdomainAccess: true

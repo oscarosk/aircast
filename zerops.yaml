@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yml-json-schema.json
+#
+# Root of the repo. Three code services (app, api, ingestor).
+# db exposes its vars (envIsolation: none in import.yaml), so DATABASE_URL is
+# assembled from the documented Postgres parts rather than a connectionString var.
+
+zerops:
+  # ---------------- Frontend: native static service ----------------
+  - setup: app
+    build:
+      base: nodejs@22
+      buildCommands:
+        - cd apps/web && npm ci && npm run build
+      # deploy the built SPA; ~ shortens the path so files land at web root
+      deployFiles:
+        - apps/web/~dist
+      cache: apps/web/node_modules
+    run:
+      # static runtime: serve the SPA and route unknown paths to index.html
+      base: static
+      routing:
+        root: /
+        redirects:
+          - from: /*
+            to: /index.html
+            preservePath: false
+    # VITE_API_URL is a BUILD var (baked into the bundle). Set it in the GUI as a
+    # build env on the app service = your api's public subdomain URL, then redeploy.
+
+  # ---------------- API (public) ----------------
+  - setup: api
+    build:
+      base: nodejs@22
+      buildCommands:
+        - cd apps/api && npm ci && npm run build
+      deployFiles:
+        - apps/api/dist
+        - apps/api/package.json
+        - apps/api/node_modules
+      cache: apps/api/node_modules
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
+      start: node apps/api/dist/index.js
+      envVariables:
+        DATABASE_URL: postgresql://${db_user}:${db_password}@${db_hostname}:${db_port}/${db_dbName}
+        REDIS_HOST: cache
+        REDIS_PORT: "6379"
+
+  # ---------------- Ingestor (private, scheduled) ----------------
+  - setup: ingestor
+    build:
+      base: nodejs@22
+      buildCommands:
+        - cd apps/ingestor && npm ci && npm run build
+      deployFiles:
+        - apps/ingestor/dist
+        - apps/ingestor/package.json
+        - apps/ingestor/node_modules
+      cache: apps/ingestor/node_modules
+    run:
+      base: nodejs@22
+      start: node apps/ingestor/dist/index.js
+      envVariables:
+        DATABASE_URL: postgresql://${db_user}:${db_password}@${db_hostname}:${db_port}/${db_dbName}
+        REDIS_HOST: cache
+        REDIS_PORT: "6379"
+        # OPENAQ_API_KEY comes from the secret env set in import.yaml / GUI
