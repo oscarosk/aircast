@@ -7,13 +7,13 @@ zerops:
       base: nodejs@22
       buildCommands:
         - cd apps/web && npm install && npm run build
-      deployFiles:
-        - apps/web/~dist
-      cache: apps/web/node_modules
+      deployFiles: ./apps/web/dist
+      envVariables:
+        VITE_API_URL: https://api-2e34-3000.prg1.zerops.app
     run:
       base: static
+      documentRoot: dist
       routing:
-        root: /
         redirects:
           - from: /*
             to: /index.html
