@@ -39,6 +39,8 @@ zerops:
         DATABASE_URL: postgresql://${db_user}:${db_password}@${db_hostname}:${db_port}/${db_dbName}
         REDIS_HOST: cache
         REDIS_PORT: "6379"
+        REDIS_URL: ${cache_connectionString}
+
 
   # ---------------- Ingestor (private, scheduled) ----------------
   - setup: ingestor
@@ -58,3 +60,4 @@ zerops:
         DATABASE_URL: postgresql://${db_user}:${db_password}@${db_hostname}:${db_port}/${db_dbName}
         REDIS_HOST: cache
         REDIS_PORT: "6379"
+        REDIS_URL: ${cache_connectionString}

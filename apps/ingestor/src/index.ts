@@ -28,10 +28,14 @@ function dbConfig() {
   };
 }
 const pool = new Pool(dbConfig());
-const redis = new Redis({
-  host: process.env.REDIS_HOST || "cache",
-  port: Number(process.env.REDIS_PORT || 6379),
-});
+const redis = process.env.REDIS_URL
+  ? new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null })
+  : new Redis({
+      host: process.env.REDIS_HOST || "cache",
+      port: Number(process.env.REDIS_PORT || 6379),
+      password: process.env.REDIS_PASSWORD || undefined,
+      maxRetriesPerRequest: null,
+    });
 const OPENAQ = "https://api.openaq.org/v3";
 const HEADERS: Record<string, string> = process.env.OPENAQ_API_KEY
   ? { "X-API-Key": process.env.OPENAQ_API_KEY }
