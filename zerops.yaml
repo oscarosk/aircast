@@ -7,12 +7,11 @@ zerops:
       base: nodejs@22
       buildCommands:
         - cd apps/web && npm install && npm run build
-      deployFiles: ./apps/web/dist
+      deployFiles: ./apps/web/dist/~
       envVariables:
         VITE_API_URL: https://api-2e34-3000.prg1.zerops.app
     run:
       base: static
-      documentRoot: dist
       routing:
         redirects:
           - from: /*
