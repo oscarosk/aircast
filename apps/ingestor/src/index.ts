@@ -85,31 +85,52 @@ async function pullCity(city: City) {
     );
     const stationId = st.rows[0].id;
 
-    const meaUrl = `${OPENAQ}/locations/${loc.id}/latest`;
-    const meaRes = await fetch(meaUrl, { headers: HEADERS });
+    // OpenAQ v3: build a sensorId -> parameter-name map from the location's sensors.
+    // The location object usually includes `sensors`; fall back to the sensors endpoint.
+    const sensorParam: Record<number, string> = {};
+    let sensors = loc.sensors as any[] | undefined;
+    if (!sensors || !sensors.length) {
+      try {
+        const sRes = await fetch(`${OPENAQ}/locations/${loc.id}/sensors`, { headers: HEADERS });
+        if (sRes.ok) sensors = (await sRes.json()).results ?? [];
+      } catch {}
+    }
+    for (const s of sensors ?? []) {
+      const pname = (s.parameter?.name || s.parameter || "").toLowerCase();
+      if (s.id != null && pname) sensorParam[s.id] = pname;
+    }
+
+    // Latest values for this location, keyed by sensorsId.
+    const meaRes = await fetch(`${OPENAQ}/locations/${loc.id}/latest`, { headers: HEADERS });
     if (!meaRes.ok) continue;
     const measurements = (await meaRes.json()).results ?? [];
 
     const byParam: Record<string, number> = {};
     let ts: string | null = null;
     for (const m of measurements) {
-      const p = (m.parameter?.name || m.parameter || "").toLowerCase();
+      // Resolve the parameter: prefer explicit param name, else map via sensorsId.
+      let p = (m.parameter?.name || m.parameter || "").toLowerCase();
+      if (!p && m.sensorsId != null) p = sensorParam[m.sensorsId] || "";
+      if (!p && m.sensorId != null) p = sensorParam[m.sensorId] || "";
       if (p) byParam[p] = m.value;
-      ts = m.datetime?.utc || m.date?.utc || ts;
+      ts = m.datetime?.utc || m.date?.utc || m.period?.datetimeTo?.utc || ts;
     }
-    if (!ts) continue;
+    if (!ts) ts = new Date().toISOString();
 
     const pm25 = byParam["pm25"] ?? null;
-    const aqi = aqiFromPm25(pm25 as number);
+    const pm10 = byParam["pm10"] ?? null;
+    // AQI from PM2.5 when available, else approximate from PM10.
+    let aqi = aqiFromPm25(pm25 as number);
+    if (aqi == null && pm10 != null) aqi = aqiFromPm25((pm10 as number) / 2);
 
     await pool.query(
       `INSERT INTO readings (station_id, ts, pm25, pm10, no2, o3, aqi)
        VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (station_id, ts) DO NOTHING`,
-      [stationId, ts, pm25, byParam["pm10"] ?? null, byParam["no2"] ?? null, byParam["o3"] ?? null, aqi]
+      [stationId, ts, pm25, pm10, byParam["no2"] ?? null, byParam["o3"] ?? null, aqi]
     );
 
-    if (aqi != null && (latestAqi == null || (ts && latestTs && ts > latestTs))) {
+    if (aqi != null && (latestAqi == null || (ts && (!latestTs || ts > latestTs)))) {
       latestAqi = aqi;
       latestTs = ts;
     }
