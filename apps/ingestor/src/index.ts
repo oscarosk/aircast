@@ -73,6 +73,8 @@ async function pullCity(city: City) {
 
   let latestAqi: number | null = null;
   let latestTs: string | null = null;
+  let latestPollutants: { pm25: number | null; pm10: number | null; no2: number | null; o3: number | null } =
+    { pm25: null, pm10: null, no2: null, o3: null };
 
   for (const loc of locs) {
     // upsert station
@@ -119,6 +121,8 @@ async function pullCity(city: City) {
 
     const pm25 = byParam["pm25"] ?? null;
     const pm10 = byParam["pm10"] ?? null;
+    const no2 = byParam["no2"] ?? null;
+    const o3 = byParam["o3"] ?? null;
     // AQI from PM2.5 when available, else approximate from PM10.
     let aqi = aqiFromPm25(pm25 as number);
     if (aqi == null && pm10 != null) aqi = aqiFromPm25((pm10 as number) / 2);
@@ -127,12 +131,13 @@ async function pullCity(city: City) {
       `INSERT INTO readings (station_id, ts, pm25, pm10, no2, o3, aqi)
        VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (station_id, ts) DO NOTHING`,
-      [stationId, ts, pm25, pm10, byParam["no2"] ?? null, byParam["o3"] ?? null, aqi]
+      [stationId, ts, pm25, pm10, no2, o3, aqi]
     );
 
     if (aqi != null && (latestAqi == null || (ts && (!latestTs || ts > latestTs)))) {
       latestAqi = aqi;
       latestTs = ts;
+      latestPollutants = { pm25, pm10, no2, o3 };
     }
   }
 
@@ -140,7 +145,16 @@ async function pullCity(city: City) {
   if (latestAqi != null) {
     await redis.set(
       `city:${city.id}:latest`,
-      JSON.stringify({ cityId: city.id, name: city.name, aqi: latestAqi, ts: latestTs }),
+      JSON.stringify({
+        cityId: city.id,
+        name: city.name,
+        aqi: latestAqi,
+        pm25: latestPollutants.pm25,
+        pm10: latestPollutants.pm10,
+        no2: latestPollutants.no2,
+        o3: latestPollutants.o3,
+        ts: new Date().toISOString(), // when AirCast last refreshed this city
+      }),
       "EX",
       3600
     );
