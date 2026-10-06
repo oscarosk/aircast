@@ -2,9 +2,7 @@
 
 **AirCast turns India's public air-quality data into live, plain-language health alerts for your city.** Pick your city, see the current AQI, where it's heading, and what to actually do about it today.
 
-🔗 **Live:** _paste your Zerops app URL here_ · 🎥 **Demo:** _paste your video link here_
-
-![AirCast dashboard](docs/screenshot.png)
+![AirCast dashboard](docs/screenshot.jpeg)
 <!-- Take a screenshot of the running dashboard and save it to docs/screenshot.png -->
 
 ---
